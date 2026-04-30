@@ -1104,7 +1104,7 @@ local function buildMainHub(guiParent)
             copyBtn.Parent = card
 
             executeBtn.MouseButton1Click:Connect(function()
-                NotificationManager:push({type = "info", title = "Script", text = "Executing '.."..item.name..'"'})
+                NotificationManager:push({type = "info", title = "Script", text = "Executing '"..item.name.."'"})
                 local ok, err = pcall(function() local f = loadstring(item.code); if type(f) == "function" then f() end end)
                 if not ok then NotificationManager:push({type = "error", title = "Execution Error", text = tostring(err)}) end
             end)
