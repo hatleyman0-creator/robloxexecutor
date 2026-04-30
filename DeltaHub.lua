@@ -64,6 +64,18 @@ local function lerp(a, b, t)
     return a + (b - a) * t
 end
 
+local safeLoad = loadstring or load
+local function executeCode(code)
+    if type(code) ~= "string" then
+        return false, "Code must be a string"
+    end
+    local fn, err = safeLoad(code)
+    if not fn then
+        return false, err
+    end
+    return pcall(fn)
+end
+
 -- Basic helpers for file-based persistence (exploiter functions if available)
 local function writeJSON(path, tbl)
     local ok, json = pcall(function() return HttpService:JSONEncode(tbl) end)
@@ -151,9 +163,16 @@ function NotificationManager:init(guiParent)
     container.Name = "Delta_Notifications"
     container.AnchorPoint = Vector2.new(1, 0)
     container.Position = UDim2.new(1, -20, 0, 20)
-    container.Size = UDim2.new(0, 360, 0, 120)
+    container.Size = UDim2.new(0, 360, 0, 140)
     container.BackgroundTransparency = 1
+    container.ClipsDescendants = false
     container.Parent = screen
+
+    local layout = new("UIListLayout")
+    layout.Parent = container
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 10)
+
     self.frame = container
 end
 
@@ -489,6 +508,16 @@ local function buildMainHub(guiParent)
     applyCorner(hub, 16)
     applyStroke(hub, Theme.uiAccent, 1.4)
 
+    local accentStrip = new("Frame")
+    accentStrip.Size = UDim2.new(1, 0, 0, 8)
+    accentStrip.Position = UDim2.new(0, 0, 0, 0)
+    accentStrip.BackgroundTransparency = 0
+    accentStrip.BorderSizePixel = 0
+    applyGradient(accentStrip, Theme.primary, Theme.secondary)
+    accentStrip.Parent = hub
+
+    makeGlow(hub, Color3.fromRGB(75, 165, 255))
+
     -- topbar
     local topbar = new("Frame")
     topbar.Size = UDim2.new(1, 0, 0, 44)
@@ -532,6 +561,31 @@ local function buildMainHub(guiParent)
     collapseBtn.Parent = controls
 
     makeDraggable(hub, topbar)
+
+    local collapsed = false
+    local expandedSize = hub.Size
+    local function setCollapsed(state)
+        collapsed = state
+        if collapsed then
+            Tween(hub, {Size = UDim2.new(expandedSize.X.Scale, expandedSize.X.Offset, 0, 54)}, 0.3)
+            sidebar.Visible = false
+            contentArea.Visible = false
+            collapseBtn.Text = "+"
+        else
+            Tween(hub, {Size = expandedSize}, 0.3)
+            sidebar.Visible = true
+            contentArea.Visible = true
+            collapseBtn.Text = "–"
+        end
+    end
+    collapseBtn.MouseButton1Click:Connect(function()
+        setCollapsed(not collapsed)
+    end)
+
+    closeBtn.MouseEnter:Connect(function() Tween(closeBtn, {TextColor3 = Color3.fromRGB(255, 120, 120)}, 0.16) end)
+    closeBtn.MouseLeave:Connect(function() Tween(closeBtn, {TextColor3 = Color3.fromRGB(220,220,220)}, 0.16) end)
+    collapseBtn.MouseEnter:Connect(function() Tween(collapseBtn, {TextColor3 = Color3.fromRGB(170, 220, 255)}, 0.16) end)
+    collapseBtn.MouseLeave:Connect(function() Tween(collapseBtn, {TextColor3 = Color3.fromRGB(200,200,200)}, 0.16) end)
 
     -- layout: sidebar + content
     local sidebar = new("Frame")
@@ -1105,7 +1159,7 @@ local function buildMainHub(guiParent)
 
             executeBtn.MouseButton1Click:Connect(function()
                 NotificationManager:push({type = "info", title = "Script", text = "Executing '"..item.name.."'"})
-                local ok, err = pcall(function() local f = loadstring(item.code); if type(f) == "function" then f() end end)
+                local ok, err = executeCode(item.code)
                 if not ok then NotificationManager:push({type = "error", title = "Execution Error", text = tostring(err)}) end
             end)
             copyBtn.MouseButton1Click:Connect(function()
@@ -1176,7 +1230,7 @@ local function buildMainHub(guiParent)
                 del.Parent = card
 
                 exec.MouseButton1Click:Connect(function()
-                    local ok, err = pcall(function() local f = loadstring(code); if type(f) == "function" then f() end end)
+                    local ok, err = executeCode(code)
                     if not ok then NotificationManager:push({type = "error", title = "Execution Error", text = tostring(err)}) end
                 end)
                 del.MouseButton1Click:Connect(function()
@@ -1453,10 +1507,7 @@ local function buildMainHub(guiParent)
 
         runBtn.MouseButton1Click:Connect(function()
             local code = editor.Text
-            local ok, ret = pcall(function()
-                local f = loadstring and loadstring(code) or load(code)
-                if type(f) == "function" then f() end
-            end)
+            local ok, ret = executeCode(code)
             if not ok then appendLog(tostring(ret), "error") else appendLog("Executed successfully", "info") end
         end)
 
